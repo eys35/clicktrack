@@ -119,6 +119,15 @@ button.pad small { font-family: var(--display); font-size: 8.5px; letter-spacing
 .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .actions a { color: var(--ink); font-weight: 700; text-underline-offset: 3px; }
 button.ghost { background: transparent; color: var(--ink); border: 1.5px solid var(--ink); }
+.stats { display: flex; flex-direction: column; gap: 12px; border-top: 1px solid var(--rule); padding-top: 14px; }
+.stats .headline { color: var(--ink); font-weight: 600; }
+.mine { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.mine div { background: var(--panel); border-radius: 4px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mine b { font-family: var(--mono); font-size: 24px; line-height: 1; font-weight: 400; font-variant-numeric: tabular-nums; }
+.mine small { font-size: 12px; color: var(--ink-soft); }
+.dist { display: grid; grid-template-columns: 18px 1fr; gap: 4px 8px; align-items: center; font-family: var(--mono); font-size: 13px; }
+.dist .bar { height: 18px; background: var(--rule); border-radius: 2px; display: flex; align-items: center; justify-content: flex-end; padding: 0 6px; min-width: 22px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.dist .bar.me { background: var(--go); color: var(--pad-fg); }
 footer { font-size: 12.5px; color: var(--ink-soft); display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: center; }
 footer button { padding: 5px 10px; font-size: 12.5px; }
 
@@ -128,6 +137,7 @@ footer button { padding: 5px 10px; font-size: 12.5px; }
   .pad.go { grid-column: 1 / -1; }
   .entry { grid-template-columns: 62px 28px 1fr; gap: 8px; padding: 8px 10px; }
   .entry .bpm { font-size: 22px; }
+  .mine { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (prefers-reduced-motion: reduce) { .entry.new { animation: none; } button { transition: none; } }
 </style>
@@ -135,7 +145,7 @@ footer button { padding: 5px 10px; font-size: 12.5px; }
 <div class="wrap">
   <header>
     <h1 class="mark"><span class="stripes" aria-hidden="true"><i style="background:var(--red)"></i><i style="background:var(--orange)"></i><i style="background:var(--yellow)"></i></span>CLICKTRACK</h1>
-    <div class="meta"><span id="num">No. 1</span><span id="count">0 / 6</span></div>
+    <div class="meta"><span id="num"></span><span id="count"></span></div>
   </header>
 
   <section class="track" aria-label="Today's song">
@@ -188,6 +198,9 @@ footer button { padding: 5px 10px; font-size: 12.5px; }
 // Songs live in songs.json. Each one has a date: the day it is the daily track. Songs without a date are queued.
 let SONGS = [];
 
+// Shared stats. Fill in your Supabase project URL and anon (public) key to turn them on; see README.md.
+const STATS = {url: "https://gnaemynprtvcycijfgba.supabase.co", key: "sb_publishable_KDaTO__igSiJX0Upnn6QHQ_cVezNHSV"};
+
 const MAX = 6, MIN_BPM = 40, MAX_BPM = 250, R_LO = 60, R_HI = 200;
 const EPOCH = new Date(2026, 9, 30);
 const $ = s => document.querySelector(s);
@@ -199,6 +212,9 @@ const store = {
   get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
 };
+// A random ID per browser, so each player counts once per day. It identifies nothing about the person.
+const PLAYER = store.get("clicktrack-player") || (() => { const id = crypto.randomUUID ? crypto.randomUUID() : "10000000-1000-4000-8000-100000000000".replace(/[018]/g, c => (c ^ Math.random() * 16 >> c / 4).toString(16)); store.set("clicktrack-player", id); return id; })();
+const prettyDate = key => { const [y, m, d] = key.split("-").map(Number); return new Date(y, m - 1, d).toLocaleDateString(undefined, {weekday: "short", month: "short", day: "numeric"}); };
 
 // Feedback for one guess. Half or double time is called out because tapping along often lands there.
 function judge(g, b) {
@@ -215,7 +231,7 @@ let game;
 function startDaily() {
   const n = todayNumber(), saved = store.get("clicktrack-" + n), song = SONGS.find(s => s.date === todayKey());
   if (!song) { startPractice(); $("#msg").textContent = "No daily track is scheduled for today, so here is a practice one."; return; }
-  game = {n, daily: true, song, guesses: saved?.guesses || [], fresh: -1};
+  game = {n, daily: true, song, guesses: saved?.guesses || [], taps: saved?.taps || 0, listens: saved?.listens || 0, sent: !!saved?.sent, stats: null, fresh: -1};
   render();
 }
 // Practice draws from past daily tracks and queued songs, so it never spoils an upcoming day.
@@ -224,12 +240,15 @@ function startPractice() {
   let pool = SONGS.filter(s => (!s.date || s.date < today) && s !== current);
   if (!pool.length) pool = SONGS.filter(s => s !== current && s.date !== today);
   if (!pool.length) pool = SONGS;
-  game = {n: null, daily: false, song: pool[Math.floor(Math.random() * pool.length)], guesses: [], fresh: -1};
+  game = {n: null, daily: false, song: pool[Math.floor(Math.random() * pool.length)], guesses: [], taps: 0, listens: 0, fresh: -1};
   $("#bpm").value = ""; $("#msg").textContent = "";
   render(); $("#bpm").focus();
 }
 const won = () => game.guesses.some(g => judge(g, game.song.b).tier === "win");
 const over = () => won() || game.guesses.length >= MAX;
+// The tempo band hint appears after 3 misses.
+const hintsUsed = () => (game.guesses.length - (won() ? 1 : 0)) >= 3 ? 1 : 0;
+const saveDaily = () => { if (game.daily) store.set("clicktrack-" + game.n, {guesses: game.guesses, taps: game.taps, listens: game.listens, sent: game.sent}); };
 
 function bounds() {
   let lo = MIN_BPM, hi = MAX_BPM;
@@ -243,8 +262,9 @@ function bounds() {
 
 function render() {
   const s = game.song, done = over(), misses = game.guesses.length - (won() ? 1 : 0);
-  $("#num").textContent = game.daily ? "No. " + game.n : "Practice";
-  $("#count").textContent = game.guesses.length + " / " + MAX;
+  $("#num").textContent = game.daily ? `#${game.n} · ${prettyDate(s.date)}` : "Practice";
+  const left = MAX - game.guesses.length;
+  $("#count").textContent = done ? (won() ? `Solved in ${game.guesses.length}` : "Out of guesses") : `${left} guess${left === 1 ? "" : "es"} left`;
   $("#title").textContent = s.t;
   $("#artist").textContent = s.a;
   const decade = Math.floor(s.b / 10) * 10;
@@ -273,10 +293,43 @@ function render() {
       <button type="button" id="copy">Copy result</button>
       <button type="button" class="ghost" id="again">Play a random one</button>
       <a href="${yt}" target="_blank" rel="noopener">Listen on YouTube ↗</a>
-    </div></div>`;
+    </div>
+    <div class="stats" id="stats">${statsHtml()}</div></div>`;
   $("#bpm").value = s.b;
   $("#copy").onclick = copyShare;
   $("#again").onclick = startPractice;
+  if (game.daily) syncStats();
+}
+
+// Stats: send this game's result once, then fetch how everyone did today.
+function api(path, body, extra = {}) {
+  return fetch(STATS.url.replace(/\/$/, "") + "/rest/v1/" + path, {method: "POST", headers: {apikey: STATS.key, Authorization: "Bearer " + STATS.key, "Content-Type": "application/json", ...extra}, body: JSON.stringify(body)});
+}
+function syncStats() {
+  if (!STATS.url || !STATS.key || game.stats || game.loading) return;
+  const g = game; g.loading = true;
+  const send = g.sent ? Promise.resolve() : api("plays", {day: g.song.date, player: PLAYER, guesses: g.guesses.length, solved: won(), hints: hintsUsed(), taps: g.taps, listens: g.listens}, {Prefer: "return=minimal"})
+    // 409 means this browser already sent today's result.
+    .then(r => { if (!r.ok && r.status !== 409) throw new Error(r.status); g.sent = true; saveDaily(); });
+  send.then(() => api("rpc/day_stats", {p_day: g.song.date})).then(r => r.ok ? r.json() : Promise.reject(r.status))
+    .then(st => { g.stats = st; }, () => { g.stats = {error: true}; })
+    .finally(() => { g.loading = false; if (game === g && $("#stats")) $("#stats").innerHTML = statsHtml(); });
+}
+function statsHtml() {
+  const avg = (v, unit) => v == null ? "" : `<small>avg ${v}${unit}</small>`;
+  const st = game.daily ? game.stats : null, ok = st && !st.error && st.players;
+  const mine = [["Guesses", won() ? game.guesses.length : "X", ok ? avg(st.avg_guesses, " to solve") : ""],
+    ["Hints", hintsUsed(), ok ? `<small>${Math.round(st.hint_rate * 100)}% needed one</small>` : "<small>tempo band</small>"],
+    ["Taps", game.taps, ok ? avg(st.avg_taps, "") : "<small>Tap tempo presses</small>"],
+    ["Hear it", game.listens, ok ? avg(st.avg_listens, "") : "<small>metronome plays</small>"]];
+  let html = `<p class="label">${game.daily ? "Your game" : "Your practice game"}</p><div class="mine">${mine.map(([k, v, sub]) => `<div><small>${k}</small><b>${v}</b>${sub}</div>`).join("")}</div>`;
+  if (!game.daily || !STATS.url) return html;
+  if (!st) return html + `<p>Loading today's results…</p>`;
+  if (!ok) return html + `<p>Today's results didn't load. Refresh to try again.</p>`;
+  const me = won() ? game.guesses.length - 1 : 6, worse = st.dist.slice(me + 1).reduce((a, b) => a + b, 0), max = Math.max(...st.dist);
+  const headline = st.players === 1 ? "You're the first player to finish today." : `You did better than ${Math.round(100 * worse / (st.players - 1))}% of today's ${st.players} players.`;
+  return html + `<p class="headline">${headline} ${Math.round(st.solve_rate * 100)}% solved it.</p>
+    <div class="dist" aria-label="How many guesses today's players needed">${st.dist.map((c, i) => `<span>${i < 6 ? i + 1 : "X"}</span><span class="bar ${i === me ? "me" : ""}" style="width:${Math.max(6, 100 * c / max)}%">${c}</span>`).join("")}</div>`;
 }
 
 function drawRuler(done) {
@@ -314,7 +367,7 @@ function submit() {
   if (game.guesses.includes(g)) { $("#msg").textContent = `You already tried ${g}.`; return; }
   $("#msg").textContent = "";
   game.guesses.push(g); game.fresh = game.guesses.length - 1;
-  if (game.daily) store.set("clicktrack-" + game.n, {guesses: game.guesses});
+  saveDaily();
   render();
   if (!over()) { $("#bpm").select(); }
 }
@@ -327,6 +380,7 @@ $("#tap").addEventListener("click", () => {
   taps.push(now); taps = taps.slice(-9);
   $("#tap").classList.add("flash"); setTimeout(() => $("#tap").classList.remove("flash"), 80);
   click(0.0, taps.length % 4 === 1);
+  if (game && !over()) { game.taps++; saveDaily(); }
   if (taps.length >= 4) {
     const avg = (taps[taps.length - 1] - taps[0]) / (taps.length - 1);
     $("#bpm").value = Math.round(60000 / avg);
@@ -350,6 +404,7 @@ $("#hear").addEventListener("click", () => {
   const g = Number($("#bpm").value);
   if (!g || g < MIN_BPM || g > MAX_BPM) { $("#msg").textContent = "Enter or tap a tempo first."; return; }
   if (!audio()) { $("#msg").textContent = "This browser can't play audio here."; return; }
+  if (game && !over()) { game.listens++; saveDaily(); }
   const beat = 60 / g;
   for (let i = 0; i < 8; i++) click(0.05 + i * beat, i % 4 === 0);
 });

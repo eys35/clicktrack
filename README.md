@@ -46,6 +46,22 @@ Rules of thumb:
 - Fixing the BPM of an upcoming song is fine.
 - If a day has no song, players get a practice track and a note saying so. `status` warns you when the schedule is about to run out.
 
+## Player stats
+
+When a daily game ends, the game sends one anonymous row to Supabase: the date, a random ID for the browser, the number of guesses, whether the player solved it, whether they needed the tempo-band hint, and how many times they pressed Tap tempo and Hear it. The result card then shows how many guesses the day's players needed, the player's percentile, and their counts against the averages.
+
+Stats stay off until `STATS` in `index.html` has a URL and key. Without them, players still see their own counts, with no comparison.
+
+To turn stats on:
+
+1. Create a free project at https://supabase.com.
+2. In the project's SQL editor, run `supabase/schema.sql`.
+3. Under Project Settings → API, copy the project URL and the `anon` public key into `const STATS = {url: "...", key: "..."}` near the top of the script in `index.html`, then push.
+
+The anon key is meant to be public. The database only lets players add a result for roughly today, one per browser per day, and never lets anyone read individual rows; the game gets only the day's totals from `day_stats()`. To look at raw results yourself, use the Table editor in Supabase.
+
+Someone determined could still submit fake results with the public key. That's fine for a casual game; if it becomes a problem, add a server-side check later.
+
 ## Publishing
 
 Push to the `main` branch. GitHub Pages serves the repo root, so changes to `songs.json` go live within a minute or two.
