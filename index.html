@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Clicktrack</title>
+<meta name="description" content="Guess the song's tempo in six tries. A new track every day.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='4' width='7' height='24' rx='2' fill='%23D9442B'/%3E%3Crect x='12.5' y='4' width='7' height='24' rx='2' fill='%23EE8A2B'/%3E%3Crect x='22' y='4' width='7' height='24' rx='2' fill='%23E9B622'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Michroma&family=Manrope:wght@400;500;600;700&family=Share+Tech+Mono&display=swap">
+<style>
+/* Layout: a drum-machine faceplate. The song sits on top, an LED tempo readout and pads in the middle, the tempo ruler and guess log below. */
+:root {
+  --panel: #E3E0D8;
+  --face: #F1EEE7;
+  --ink: #26241F;
+  --ink-soft: #6B675D;
+  --rule: #C7C2B6;
+  --led-bg: #2B2A26;
+  --led: #FFB547;
+  --red: #D9442B;
+  --orange: #EE8A2B;
+  --yellow: #E9B622;
+  --cold: #6F8FB3;
+  --go: #3FA65F;
+  --pad-fg: #FFFFFF;
+  --display: "Michroma", "Eurostile", "Arial Black", sans-serif;
+  --body: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "Share Tech Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --panel: #1F1E1B; --face: #2A2925; --ink: #EEEAE0; --ink-soft: #A39E91; --rule: #3E3C36;
+    --led-bg: #141311; --led: #FFB547; --red: #E5553B; --orange: #F29541; --yellow: #EFC23E; --cold: #7E9CC0; --go: #4CB86E; --pad-fg: #FFFFFF;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --panel: #1F1E1B; --face: #2A2925; --ink: #EEEAE0; --ink-soft: #A39E91; --rule: #3E3C36;
+  --led-bg: #141311; --led: #FFB547; --red: #E5553B; --orange: #F29541; --yellow: #EFC23E; --cold: #7E9CC0; --go: #4CB86E; --pad-fg: #FFFFFF;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--panel); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 24px 56px;
+}
+.wrap { max-width: 600px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+
+header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.mark { font-family: var(--display); font-size: 22px; letter-spacing: 0.08em; margin: 0; display: flex; align-items: center; gap: 10px; }
+.stripes { display: inline-flex; gap: 3px; }
+.stripes i { width: 8px; height: 22px; border-radius: 2px; display: block; }
+.meta { font-family: var(--mono); font-size: 13px; color: var(--ink-soft); display: flex; gap: 14px; text-transform: uppercase; letter-spacing: 0.05em; }
+
+.label { font-family: var(--display); font-size: 9.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-soft); margin: 0; }
+
+.track { background: var(--face); border: 1px solid var(--rule); border-radius: 6px; padding: 18px 20px; display: flex; flex-direction: column; gap: 6px; }
+.title { font-weight: 700; font-size: clamp(24px, 6vw, 32px); line-height: 1.15; margin: 0; text-wrap: balance; }
+.artist { font-size: 17px; color: var(--ink-soft); margin: 0; }
+.hints { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.chip { font-size: 12.5px; font-weight: 600; padding: 3px 10px; border-radius: 99px; border: 1px solid var(--rule); color: var(--ink-soft); }
+.chip.on { border-color: var(--ink); color: var(--ink); }
+
+.deck { background: var(--face); border: 1px solid var(--rule); border-radius: 6px; padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
+.readout { display: flex; align-items: stretch; gap: 10px; }
+.led { flex: 1; min-width: 0; background: var(--led-bg); border-radius: 4px; display: flex; align-items: baseline; justify-content: flex-end; gap: 10px; padding: 8px 16px; }
+.led input { all: unset; width: 100%; min-width: 0; text-align: right; font-family: var(--mono); font-size: 56px; line-height: 1; color: var(--led); text-shadow: 0 0 12px color-mix(in srgb, var(--led) 45%, transparent); caret-color: var(--led); }
+.led input::placeholder { color: color-mix(in srgb, var(--led) 25%, transparent); text-shadow: none; }
+.led span { font-family: var(--display); font-size: 11px; color: color-mix(in srgb, var(--led) 70%, transparent); letter-spacing: 0.1em; }
+.led:focus-within { outline: 3px solid color-mix(in srgb, var(--led) 60%, transparent); outline-offset: 2px; }
+.nudge { display: flex; flex-direction: column; gap: 6px; }
+.nudge button { width: 48px; flex: 1; font-size: 20px; padding: 0; }
+
+.pads { display: grid; grid-template-columns: 1fr 1fr 1.3fr; gap: 10px; }
+button { font: inherit; font-weight: 700; cursor: pointer; border: 0; border-radius: 4px; padding: 12px 14px; background: var(--ink); color: var(--panel); transition: transform 80ms; }
+button:active { transform: translateY(1px); }
+button:focus-visible { outline: 3px solid var(--orange); outline-offset: 2px; }
+button:disabled { opacity: 0.4; cursor: default; }
+button.pad { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; color: var(--pad-fg); }
+button.pad small { font-family: var(--display); font-size: 8.5px; letter-spacing: 0.14em; opacity: 0.85; font-weight: 400; }
+.pad.tap { background: var(--yellow); color: var(--ink); }
+.pad.tap.flash { filter: brightness(1.15); }
+.pad.hear { background: var(--orange); }
+.pad.go { background: var(--red); }
+.nudge button { background: var(--face); color: var(--ink); border: 1px solid var(--rule); }
+.msg { min-height: 20px; margin: -4px 0 0; font-size: 13.5px; font-weight: 600; color: var(--red); }
+
+.ruler svg { width: 100%; height: auto; display: block; overflow: visible; }
+.ruler text { font-family: var(--mono); font-size: 13px; fill: var(--ink-soft); }
+.ruler .range-label { font-family: var(--mono); font-size: 13px; color: var(--ink); margin: 6px 0 0; }
+
+.log { display: flex; flex-direction: column; gap: 8px; }
+.entry { display: grid; grid-template-columns: 76px 40px 1fr; align-items: center; gap: 12px; background: var(--face); border: 1px solid var(--rule); border-left-width: 6px; border-radius: 4px; padding: 8px 14px; }
+.entry .bpm { font-family: var(--mono); font-size: 26px; line-height: 1; font-variant-numeric: tabular-nums; }
+.entry .dir { font-size: 22px; font-weight: 700; text-align: center; }
+.entry .verdict { font-weight: 600; min-width: 0; }
+.entry .verdict small { display: block; font-weight: 500; color: var(--ink-soft); font-size: 12.5px; }
+.entry.hot { border-left-color: var(--red); }
+.entry.warm { border-left-color: var(--yellow); }
+.entry.cold { border-left-color: var(--cold); }
+.entry.half { border-left-color: var(--orange); }
+.entry.win { border-left-color: var(--go); }
+.entry.new { animation: slide 260ms ease both; }
+@keyframes slide { from { transform: translateY(-6px); opacity: 0.4; } to { transform: none; opacity: 1; } }
+.slot { height: 46px; border: 1.5px dashed var(--rule); border-radius: 4px; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--ink-soft); }
+.legend b { display: inline-block; width: 12px; height: 12px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+
+.result { background: var(--face); border: 1.5px solid var(--ink); border-radius: 6px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; }
+.result h2 { margin: 0; font-size: 24px; line-height: 1.2; text-wrap: balance; }
+.result h2 .num { font-family: var(--mono); color: var(--red); }
+.result p { margin: 0; color: var(--ink-soft); }
+.share-text { font-family: var(--mono); font-size: 13px; white-space: pre; overflow-x: auto; background: var(--panel); padding: 10px; border-radius: 3px; margin: 0; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.actions a { color: var(--ink); font-weight: 700; text-underline-offset: 3px; }
+button.ghost { background: transparent; color: var(--ink); border: 1.5px solid var(--ink); }
+footer { font-size: 12.5px; color: var(--ink-soft); display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: center; }
+footer button { padding: 5px 10px; font-size: 12.5px; }
+
+@media (max-width: 440px) {
+  .led input { font-size: 44px; }
+  .pads { grid-template-columns: 1fr 1fr; }
+  .pad.go { grid-column: 1 / -1; }
+  .entry { grid-template-columns: 62px 28px 1fr; gap: 8px; padding: 8px 10px; }
+  .entry .bpm { font-size: 22px; }
+}
+@media (prefers-reduced-motion: reduce) { .entry.new { animation: none; } button { transition: none; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1 class="mark"><span class="stripes" aria-hidden="true"><i style="background:var(--red)"></i><i style="background:var(--orange)"></i><i style="background:var(--yellow)"></i></span>CLICKTRACK</h1>
+    <div class="meta"><span id="num">No. 1</span><span id="count">0 / 6</span></div>
+  </header>
+
+  <section class="track" aria-label="Today's song">
+    <p class="label">Today's track · guess the tempo</p>
+    <h2 class="title" id="title">Loading today's track…</h2>
+    <p class="artist" id="artist"></p>
+    <div class="hints" id="hints"></div>
+  </section>
+
+  <form class="deck" id="form" autocomplete="off">
+    <div class="readout">
+      <label class="led" for="bpm"><input id="bpm" disabled type="text" inputmode="numeric" maxlength="3" placeholder="120" aria-label="Your BPM guess"><span>BPM</span></label>
+      <div class="nudge">
+        <button type="button" id="up" disabled aria-label="Add 1 BPM">+</button>
+        <button type="button" id="down" disabled aria-label="Subtract 1 BPM">−</button>
+      </div>
+    </div>
+    <div class="pads">
+      <button type="button" class="pad tap" id="tap" disabled>Tap tempo<small>TAP ALONG IN YOUR HEAD</small></button>
+      <button type="button" class="pad hear" id="hear">Hear it<small>PLAY 8 CLICKS</small></button>
+      <button type="submit" class="pad go" id="go" disabled>Lock in guess<small>ENTER</small></button>
+    </div>
+    <p class="msg" id="msg" role="status"></p>
+  </form>
+
+  <section class="ruler" aria-label="Possible tempo range">
+    <p class="label">Tempo ruler</p>
+    <svg id="ruler" viewBox="0 0 600 64" role="img"></svg>
+    <p class="range-label" id="range-label"></p>
+  </section>
+
+  <div class="legend" aria-label="How feedback works">
+    <span><b style="background:var(--go)"></b>Within 3 BPM, you win</span>
+    <span><b style="background:var(--red)"></b>Hot, within 8</span>
+    <span><b style="background:var(--yellow)"></b>Warm, within 20</span>
+    <span><b style="background:var(--cold)"></b>Cold</span>
+    <span><b style="background:var(--orange)"></b>Half or double time</span>
+  </div>
+
+  <div class="log" id="log"></div>
+  <div id="result"></div>
+
+  <footer>
+    <span>Tempos are approximate studio BPMs. A new track every day.</span>
+    <button class="ghost" id="practice" disabled type="button">Play a random one</button>
+  </footer>
+</div>
+
+<script>
+// Songs live in songs.json. Each one has a date: the day it is the daily track. Songs without a date are queued.
+let SONGS = [];
+
+const MAX = 6, MIN_BPM = 40, MAX_BPM = 250, R_LO = 60, R_HI = 200;
+const EPOCH = new Date(2026, 9, 30);
+const $ = s => document.querySelector(s);
+
+function todayKey() { const n = new Date(); return n.getFullYear() + "-" + String(n.getMonth() + 1).padStart(2, "0") + "-" + String(n.getDate()).padStart(2, "0"); }
+function todayNumber() { const n = new Date(); const d = new Date(n.getFullYear(), n.getMonth(), n.getDate()); return Math.max(1, Math.round((d - EPOCH) / 86400000) + 1); }
+
+const store = {
+  get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+};
+
+// Feedback for one guess. Half or double time is called out because tapping along often lands there.
+function judge(g, b) {
+  const d = b - g, dir = d > 0 ? "up" : d < 0 ? "down" : "eq";
+  if (Math.abs(d) <= 3) return {tier: "win", dir, text: "Locked in", sub: `Actual tempo is ${b} BPM`};
+  if (Math.abs(g * 2 - b) <= 6) return {tier: "half", dir, text: "Half time", sub: "You're feeling every other beat. Try doubling."};
+  if (Math.abs(g / 2 - b) <= 3) return {tier: "half", dir, text: "Double time", sub: "You're counting twice per beat. Try halving."};
+  if (Math.abs(d) <= 8) return {tier: "hot", dir, text: "Hot", sub: "Within 8 BPM"};
+  if (Math.abs(d) <= 20) return {tier: "warm", dir, text: "Warm", sub: "Within 20 BPM"};
+  return {tier: "cold", dir, text: "Cold", sub: "More than 20 BPM off"};
+}
+
+let game;
+function startDaily() {
+  const n = todayNumber(), saved = store.get("clicktrack-" + n), song = SONGS.find(s => s.date === todayKey());
+  if (!song) { startPractice(); $("#msg").textContent = "No daily track is scheduled for today, so here is a practice one."; return; }
+  game = {n, daily: true, song, guesses: saved?.guesses || [], fresh: -1};
+  render();
+}
+// Practice draws from past daily tracks and queued songs, so it never spoils an upcoming day.
+function startPractice() {
+  const today = todayKey(), current = game?.song;
+  let pool = SONGS.filter(s => (!s.date || s.date < today) && s !== current);
+  if (!pool.length) pool = SONGS.filter(s => s !== current && s.date !== today);
+  if (!pool.length) pool = SONGS;
+  game = {n: null, daily: false, song: pool[Math.floor(Math.random() * pool.length)], guesses: [], fresh: -1};
+  $("#bpm").value = ""; $("#msg").textContent = "";
+  render(); $("#bpm").focus();
+}
+const won = () => game.guesses.some(g => judge(g, game.song.b).tier === "win");
+const over = () => won() || game.guesses.length >= MAX;
+
+function bounds() {
+  let lo = MIN_BPM, hi = MAX_BPM;
+  for (const g of game.guesses) {
+    const j = judge(g, game.song.b);
+    if (j.tier === "win") continue;
+    if (j.dir === "up") lo = Math.max(lo, g + 1); else hi = Math.min(hi, g - 1);
+  }
+  return [lo, hi];
+}
+
+function render() {
+  const s = game.song, done = over(), misses = game.guesses.length - (won() ? 1 : 0);
+  $("#num").textContent = game.daily ? "No. " + game.n : "Practice";
+  $("#count").textContent = game.guesses.length + " / " + MAX;
+  $("#title").textContent = s.t;
+  $("#artist").textContent = s.a;
+  const decade = Math.floor(s.b / 10) * 10;
+  $("#hints").innerHTML = [
+    [String(s.y), true],
+    [misses >= 3 || done ? `In the ${decade}s` : "Tempo band after 3 misses", misses >= 3 || done],
+  ].map(([t, on]) => `<span class="chip ${on ? "on" : ""}">${esc(t)}</span>`).join("");
+
+  drawRuler(done);
+
+  $("#log").innerHTML = game.guesses.map((g, i) => {
+    const j = judge(g, s.b);
+    const arrow = j.tier === "win" ? "✓" : j.dir === "up" ? "↑" : "↓";
+    return `<div class="entry ${j.tier} ${i === game.fresh ? "new" : ""}"><span class="bpm">${g}</span><span class="dir" aria-label="${j.dir === "up" ? "faster" : "slower"}">${arrow}</span><span class="verdict">${j.text}${j.tier !== "win" ? `, go ${j.dir === "up" ? "faster" : "slower"}` : ""}<small>${j.sub}</small></span></div>`;
+  }).join("") + (done ? "" : Array.from({length: MAX - game.guesses.length}, () => `<div class="slot"></div>`).join(""));
+
+  for (const id of ["#bpm", "#go", "#tap", "#up", "#down"]) $(id).disabled = done;
+
+  if (!done) { $("#result").innerHTML = ""; return; }
+  const yt = "https://www.youtube.com/results?search_query=" + encodeURIComponent(s.a + " " + s.t);
+  $("#result").innerHTML = `<div class="result">
+    <h2>${won() ? `Locked in on guess ${game.guesses.length}.` : "Out of guesses."} ${esc(s.t)} runs at <span class="num">${s.b} BPM</span>.</h2>
+    <p>Hit Hear it to compare against the real tempo while the song plays in your head.</p>
+    <pre class="share-text" id="share-text">${esc(shareText())}</pre>
+    <div class="actions">
+      <button type="button" id="copy">Copy result</button>
+      <button type="button" class="ghost" id="again">Play a random one</button>
+      <a href="${yt}" target="_blank" rel="noopener">Listen on YouTube ↗</a>
+    </div></div>`;
+  $("#bpm").value = s.b;
+  $("#copy").onclick = copyShare;
+  $("#again").onclick = startPractice;
+}
+
+function drawRuler(done) {
+  const [lo, hi] = bounds(), b = game.song.b;
+  const x = v => 20 + (Math.min(R_HI, Math.max(R_LO, v)) - R_LO) / (R_HI - R_LO) * 560;
+  const col = {win: "var(--go)", hot: "var(--red)", warm: "var(--yellow)", cold: "var(--cold)", half: "var(--orange)"};
+  let svg = `<rect x="20" y="18" width="560" height="14" rx="2" fill="var(--rule)" opacity="0.5"/>`;
+  svg += `<rect x="${x(lo)}" y="18" width="${Math.max(3, x(hi) - x(lo))}" height="14" rx="2" fill="var(--ink)" opacity="0.85"/>`;
+  for (let v = R_LO; v <= R_HI; v += 20) svg += `<line x1="${x(v)}" x2="${x(v)}" y1="34" y2="40" stroke="var(--ink-soft)" stroke-width="1"/><text x="${x(v)}" y="56" text-anchor="middle">${v}</text>`;
+  for (const g of game.guesses) svg += `<rect x="${x(g) - 2}" y="10" width="4" height="30" rx="1" fill="${col[judge(g, b).tier]}"/>`;
+  if (done) svg += `<path d="M${x(b) - 6} 2 L${x(b) + 6} 2 L${x(b)} 12 Z" fill="var(--go)"/>`;
+  $("#ruler").innerHTML = svg;
+  $("#ruler").setAttribute("aria-label", `Tempo is between ${lo} and ${hi} BPM`);
+  $("#range-label").textContent = done ? `Answer: ${b} BPM` : game.guesses.length ? `Somewhere between ${lo} and ${hi} BPM` : "Most songs sit between 60 and 200 BPM";
+}
+
+function shareText() {
+  const icon = {win: "✅", hot: "🔥", warm: "🟨", cold: "🧊", half: "🌗"};
+  const lines = game.guesses.map(g => { const j = judge(g, game.song.b); return icon[j.tier] + (j.tier === "win" ? "" : j.dir === "up" ? "⬆️" : "⬇️"); });
+  return `Clicktrack ${game.daily ? "#" + game.n : "(practice)"} ${won() ? game.guesses.length : "X"}/${MAX}\n${lines.join(" ")}`;
+}
+function copyShare() {
+  const btn = $("#copy");
+  const ok = () => { btn.textContent = "Copied"; setTimeout(() => btn.textContent = "Copy result", 1600); };
+  const fallback = () => { const r = document.createRange(); r.selectNodeContents($("#share-text")); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); btn.textContent = "Selected, press Ctrl+C"; };
+  try { navigator.clipboard.writeText(shareText()).then(ok, fallback); } catch { fallback(); }
+}
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"})[c]); }
+
+function submit() {
+  if (over()) return;
+  const v = $("#bpm").value.trim();
+  const g = Number(v);
+  if (!/^\d+$/.test(v) || g < MIN_BPM || g > MAX_BPM) { $("#msg").textContent = `Enter a whole number between ${MIN_BPM} and ${MAX_BPM}.`; return; }
+  if (game.guesses.includes(g)) { $("#msg").textContent = `You already tried ${g}.`; return; }
+  $("#msg").textContent = "";
+  game.guesses.push(g); game.fresh = game.guesses.length - 1;
+  if (game.daily) store.set("clicktrack-" + game.n, {guesses: game.guesses});
+  render();
+  if (!over()) { $("#bpm").select(); }
+}
+
+// Tap tempo: average the last 8 taps, reset after a 2 second pause.
+let taps = [];
+$("#tap").addEventListener("click", () => {
+  const now = performance.now();
+  if (taps.length && now - taps[taps.length - 1] > 2000) taps = [];
+  taps.push(now); taps = taps.slice(-9);
+  $("#tap").classList.add("flash"); setTimeout(() => $("#tap").classList.remove("flash"), 80);
+  click(0.0, taps.length % 4 === 1);
+  if (taps.length >= 4) {
+    const avg = (taps[taps.length - 1] - taps[0]) / (taps.length - 1);
+    $("#bpm").value = Math.round(60000 / avg);
+    $("#msg").textContent = "";
+  } else {
+    $("#msg").textContent = `Keep tapping (${taps.length} of 4)`;
+  }
+});
+
+// Metronome
+let ctx;
+function audio() { try { ctx = ctx || new (window.AudioContext || window.webkitAudioContext)(); if (ctx.state === "suspended") ctx.resume(); return ctx; } catch { return null; } }
+function click(delay, accent) {
+  const c = audio(); if (!c) return;
+  const t = c.currentTime + delay, o = c.createOscillator(), g = c.createGain();
+  o.frequency.value = accent ? 1500 : 1000;
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.5, t + 0.002); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.06);
+  o.connect(g).connect(c.destination); o.start(t); o.stop(t + 0.07);
+}
+$("#hear").addEventListener("click", () => {
+  const g = Number($("#bpm").value);
+  if (!g || g < MIN_BPM || g > MAX_BPM) { $("#msg").textContent = "Enter or tap a tempo first."; return; }
+  if (!audio()) { $("#msg").textContent = "This browser can't play audio here."; return; }
+  const beat = 60 / g;
+  for (let i = 0; i < 8; i++) click(0.05 + i * beat, i % 4 === 0);
+});
+
+$("#up").addEventListener("click", () => { $("#bpm").value = Math.min(MAX_BPM, (Number($("#bpm").value) || 120) + 1); });
+$("#down").addEventListener("click", () => { $("#bpm").value = Math.max(MIN_BPM, (Number($("#bpm").value) || 120) - 1); });
+$("#bpm").addEventListener("input", e => { e.target.value = e.target.value.replace(/\D/g, ""); $("#msg").textContent = ""; });
+$("#form").addEventListener("submit", e => { e.preventDefault(); submit(); });
+$("#practice").addEventListener("click", startPractice);
+
+fetch("songs.json", {cache: "no-cache"})
+  .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+  .then(list => {
+    SONGS = list.map(s => ({t: s.title, a: s.artist, y: s.year, b: s.bpm, date: s.date || null}));
+    $("#practice").disabled = false;
+    startDaily();
+  })
+  .catch(() => { $("#title").textContent = "The song list didn't load."; $("#artist").textContent = "Refresh the page to try again."; });
+</script>
