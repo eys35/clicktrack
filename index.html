@@ -199,7 +199,7 @@ footer button { padding: 5px 10px; font-size: 12.5px; }
 let SONGS = [];
 
 // Shared stats. Fill in your Supabase project URL and anon (public) key to turn them on; see README.md.
-const STATS = {url: "", key: ""};
+const STATS = {url: "https://gnaemynprtvcycijfgba.supabase.co", key: "sb_publishable_KDaTO__igSiJX0Upnn6QHQ_cVezNHSV"};
 
 const MAX = 6, MIN_BPM = 40, MAX_BPM = 250, R_LO = 60, R_HI = 200;
 const EPOCH = new Date(2026, 9, 30);
@@ -308,8 +308,9 @@ function api(path, body, extra = {}) {
 function syncStats() {
   if (!STATS.url || !STATS.key || game.stats || game.loading) return;
   const g = game; g.loading = true;
-  const send = g.sent ? Promise.resolve() : api("plays?on_conflict=day,player", {day: g.song.date, player: PLAYER, guesses: g.guesses.length, solved: won(), hints: hintsUsed(), taps: g.taps, listens: g.listens}, {Prefer: "resolution=ignore-duplicates,return=minimal"})
-    .then(r => { if (!r.ok) throw new Error(r.status); g.sent = true; saveDaily(); });
+  const send = g.sent ? Promise.resolve() : api("plays", {day: g.song.date, player: PLAYER, guesses: g.guesses.length, solved: won(), hints: hintsUsed(), taps: g.taps, listens: g.listens}, {Prefer: "return=minimal"})
+    // 409 means this browser already sent today's result.
+    .then(r => { if (!r.ok && r.status !== 409) throw new Error(r.status); g.sent = true; saveDaily(); });
   send.then(() => api("rpc/day_stats", {p_day: g.song.date})).then(r => r.ok ? r.json() : Promise.reject(r.status))
     .then(st => { g.stats = st; }, () => { g.stats = {error: true}; })
     .finally(() => { g.loading = false; if (game === g && $("#stats")) $("#stats").innerHTML = statsHtml(); });
