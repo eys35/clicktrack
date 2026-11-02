@@ -71,5 +71,15 @@
   {"title":"Bad Habits","artist":"Ed Sheeran","year":2021,"bpm":126,"verified":false,"date":"2027-01-07"},
   {"title":"Highway to Hell","artist":"AC/DC","year":1979,"bpm":116,"verified":false,"date":"2027-01-08"},
   {"title":"Africa","artist":"Toto","year":1982,"bpm":93,"verified":false,"date":"2027-01-09"},
-  {"title":"Old Town Road","artist":"Lil Nas X","year":2019,"bpm":136,"verified":false,"date":"2027-01-10"}
+  {"title":"Old Town Road","artist":"Lil Nas X","year":2019,"bpm":136,"verified":false,"date":"2027-01-10"},
+  {"title":"God's Plan","artist":"Drake","year":2018,"bpm":77,"verified":false,"date":null},
+  {"title":"One Dance","artist":"Drake ft. Wizkid & Kyla","year":2016,"bpm":104,"verified":false,"date":null},
+  {"title":"Hold On, We're Going Home","artist":"Drake ft. Majid Jordan","year":2013,"bpm":100,"verified":false,"date":null},
+  {"title":"In My Feelings","artist":"Drake","year":2018,"bpm":91,"verified":false,"date":null},
+  {"title":"Passionfruit","artist":"Drake","year":2017,"bpm":112,"verified":false,"date":null},
+  {"title":"Stronger","artist":"Kanye West","year":2007,"bpm":104,"verified":false,"date":null},
+  {"title":"Gold Digger","artist":"Kanye West ft. Jamie Foxx","year":2005,"bpm":93,"verified":false,"date":null},
+  {"title":"Heartless","artist":"Kanye West","year":2008,"bpm":88,"verified":false,"date":null},
+  {"title":"Power","artist":"Kanye West","year":2010,"bpm":77,"verified":false,"date":null},
+  {"title":"All of the Lights","artist":"Kanye West","year":2010,"bpm":142,"verified":false,"date":null}
 ]
